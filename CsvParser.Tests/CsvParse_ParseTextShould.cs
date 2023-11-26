@@ -118,4 +118,26 @@ a, b")]
 
         Assert.Equivalent(expected, actual);
     }
+
+    [Fact]
+    public void CsvParseText_Should_Parse_DSV()
+    {
+        var text = @"Year;Make;Model;Length
+1997;Ford;E350;2,35
+2000;Mercury;Cougar;2,38";
+
+        var expected = new string[][]
+        {
+            new string[]{ "Year", "Make", "Model", "Length" },
+            new string[]{ "1997", "Ford", "E350", "2,35" },
+            new string[]{ "2000", "Mercury", "Cougar", "2,38" }
+        };
+
+        var actual = CsvParser.ParseText(text, new()
+        {
+            Separator = ';'
+        });
+
+        Assert.Equivalent(expected, actual);
+    }
 }
