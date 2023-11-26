@@ -170,29 +170,42 @@ public class CsvParser
 
     private static string[][] Normalize(List<string[]> list, NormalizeType type)
     {
-        if (type == NormalizeType.None || list.Count < 2)
+        if (type != NormalizeType.None && list.Count > 1)
         {
-            return list.ToArray();
+            var min = int.MaxValue;
+            var max = -1;
+
+            list.ForEach(x =>
+            {
+                min = min < x.Length ? min : x.Length;
+                max = max < x.Length ? x.Length : max;
+            });
+
+            var requiredLength = type == NormalizeType.MatchFirstRow ? list[0].Length : max;
+
+            if (requiredLength != min || requiredLength != max)
+            {
+                return list.ConvertAll(row =>
+                {
+                    if (row.Length != requiredLength)
+                    {
+                        var oldLength = row.Length;
+                        Array.Resize(ref row, requiredLength);
+                        if (oldLength < requiredLength)
+                        {
+                            for (var i = oldLength; i < requiredLength; i++)
+                            {
+                                row[i] = string.Empty;
+                            }
+                        }
+                    }
+                    return row;
+                }).ToArray();
+            }
+
         }
 
-        var requiredLength = type == NormalizeType.MatchFirstRow ? list[0].Length : list.Max(x => x.Length);
-
-        return list.ConvertAll(row =>
-        {
-            if (row.Length != requiredLength)
-            {
-                var oldLength = row.Length;
-                Array.Resize(ref row, requiredLength);
-                if (oldLength < requiredLength)
-                {
-                    for (var i = oldLength; i < requiredLength; i++)
-                    {
-                        row[i] = string.Empty;
-                    }
-                }
-            }
-            return row;
-        }).ToArray();
+        return list.ToArray();
     }
 
     private static string GetExceptionMessage(TextReader streamReader, char actual, char separator)
