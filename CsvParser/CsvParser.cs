@@ -11,10 +11,7 @@ public class CsvParser
 
     public static string[][] ParseText(string text, CsvParserOptions? options = null)
     {
-        if (options == null)
-        {
-            options = new CsvParserOptions();
-        }
+        options ??= new CsvParserOptions();
 
         using var streamReader = new StringReader(text);
         return ParseStreamReader(streamReader, options);
@@ -22,10 +19,7 @@ public class CsvParser
 
     public static string[][] ParseFile(string file, CsvParserOptions? options = null)
     {
-        if (options == null)
-        {
-            options = new CsvParserOptions();
-        }
+        options ??= new CsvParserOptions();
 
         var streamOptions = new FileStreamOptions()
         {
@@ -37,12 +31,8 @@ public class CsvParser
         return ParseStreamReader(streamReader, options);
     }
 
-    private static string[][] ParseStreamReader(TextReader streamReader, CsvParserOptions? options = null)
+    private static string[][] ParseStreamReader(TextReader streamReader, CsvParserOptions options)
     {
-        if (options == null)
-        {
-            options = new CsvParserOptions();
-        }
 
         var isEscaped = false;
         var isExpectingSeparator = false;
@@ -64,8 +54,8 @@ public class CsvParser
                 {
                     if (peak == Quote)
                     {
-                        currentCell.Append(current);
-                        streamReader.Read();
+                        _ = currentCell.Append(current);
+                        _ = streamReader.Read();
                     }
                     else
                     {
@@ -76,7 +66,7 @@ public class CsvParser
                 }
                 else
                 {
-                    currentCell.Append(current);
+                    _ = currentCell.Append(current);
                 }
             }
             else
@@ -96,7 +86,7 @@ public class CsvParser
                 {
                     isExpectingSeparator = false;
                     currentRow.Add(currentCell.ToString());
-                    currentCell.Clear();
+                    _ = currentCell.Clear();
                 }
                 else if (read == CR)
                 {
@@ -107,15 +97,17 @@ public class CsvParser
                     isExpectingSeparator = false;
                     currentRow.Add(currentCell.ToString());
                     result.Add(currentRow.ToArray());
-                    currentCell.Clear();
+                    _ = currentCell.Clear();
                     currentRow.Clear();
                 }
                 else if (read == Space)
                 {
                     if (currentCell.Length != 0 && ReadLeadingSpace(streamReader, options.Separator, ref spaceBuilder))
                     {
-                        currentCell.Append(current).Append(spaceBuilder);
+                        _ = currentCell.Append(current).Append(spaceBuilder);
                     }
+
+                    peak = streamReader.Peek();
                 }
                 else
                 {
@@ -126,7 +118,7 @@ public class CsvParser
                         );
                     }
 
-                    currentCell.Append(current);
+                    _ = currentCell.Append(current);
                 }
             }
 
@@ -134,7 +126,7 @@ public class CsvParser
             {
                 currentRow.Add(currentCell.ToString());
                 result.Add(currentRow.ToArray());
-                currentCell.Clear();
+                _ = currentCell.Clear();
                 currentRow.Clear();
             }
 
@@ -142,8 +134,8 @@ public class CsvParser
             peak = streamReader.Peek();
         }
 
-        currentCell.Clear();
-        spaceBuilder.Clear();
+        _ = currentCell.Clear();
+        _ = spaceBuilder.Clear();
 
         return Normalize(result, options.Normalization);
     }
@@ -151,17 +143,17 @@ public class CsvParser
     private static bool ReadLeadingSpace(TextReader streamReader, char separator, ref StringBuilder result)
     {
         var peek = streamReader.Peek();
-        result.Clear();
+        _ = result.Clear();
         while (peek == Space)
         {
-            result.Append(Space);
-            streamReader.Read();
+            _ = result.Append(Space);
+            _ = streamReader.Read();
             peek = streamReader.Peek();
         }
 
         if (peek == separator || peek == CR || peek == LF || peek == -1)
         {
-            result.Clear();
+            _ = result.Clear();
             return false;
         }
 

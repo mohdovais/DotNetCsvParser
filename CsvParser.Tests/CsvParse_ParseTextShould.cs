@@ -89,4 +89,33 @@ a, b";
 
         Assert.Equivalent(expected, actual);
     }
+
+    [Theory]
+    [InlineData(@"a, b, c
+""a"" ""b"", c, d, e
+a, b")]
+    [InlineData(@"a, b, c
+""a"" b, c, d, e
+a, b")]
+    public void CsvParseText_Should_Throw_Parsing_Exception(string text)
+    {
+        Assert.Throws<CsvParserException>(() => CsvParser.ParseText(text));
+    }
+
+    [Theory]
+    [InlineData("  a,b,c\n d , e , f\n  g  ,  h  ,  i  ")]
+    [InlineData("\"a\",\"b\",\"c\"\n \"d\" , \"e\" , \"f\"\n  \"g\"  ,  \"h\"  ,  \"i\"  ")]
+    public void CsvParseText_Should_Ignore_SpaceWrapping(string text)
+    {
+        var expected = new string[][]
+        {
+            new string[]{ "a", "b", "c" },
+            new string[]{ "d", "e", "f" },
+            new string[]{ "g", "h", "i" },
+        };
+
+        var actual = CsvParser.ParseText(text);
+
+        Assert.Equivalent(expected, actual);
+    }
 }
