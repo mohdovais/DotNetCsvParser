@@ -27,24 +27,6 @@ string[][] parsedText = CsvParser.ParseText(text);
 
 ```
 
-Example of an analogous European CSV/DSV file (where the decimal separator is a comma and the value separator is a semicolon):
-
-```C#
-string text = @"Year;Make;Model;Length
-1997;Ford;E350;2,35
-2000;Mercury;Cougar;2,38";
-
-string[][] parsedText = CsvParser.ParseText(text, new CsvParserOptions(){ Separator = ';' });
-/*
-[
-    [ "Year", "Make", "Model", "Length" ],
-    [ "1997", "Ford", "E350", "2,35" ],
-    [ "2000", "Mercury", "Cougar", "2,38" ]
-]
-*/
-
-```
-
 It supports new line in cell:
 
 ```
@@ -64,3 +46,107 @@ The above text will be parsed as:
 | 1999 | Chevy | Venture "Extended Edition"             |                                       | 4900.00 |
 | 1999 | Chevy | Venture "Extended Edition, Very Large" |                                       | 5000.00 |
 | 1996 | Jeep  | Grand Cherokee                         | MUST SELL!<br/>air, moon roof, loaded | 4799.00 |
+
+## CsvParserOptions.Separator
+
+Example of an analogous European CSV/DSV file (where the decimal separator is a comma and the value separator is a semicolon):
+
+```C#
+string text = @"Year;Make;Model;Length
+1997;Ford;E350;2,35
+2000;Mercury;Cougar;2,38";
+
+string[][] parsedText = CsvParser.ParseText(text, new CsvParserOptions(){ Separator = ';' });
+/*
+[
+    [ "Year", "Make", "Model", "Length" ],
+    [ "1997", "Ford", "E350", "2,35" ],
+    [ "2000", "Mercury", "Cougar", "2,38" ]
+]
+*/
+
+```
+
+## CsvParserOptions.Normalization
+
+There are three types on rows size normalization:
+
+### NormalizeType.MatchMaxRow
+
+`NormalizeType.MatchMaxRow` will make all rows same size if there are descrepencies in number of cells in rows. **This is default behaviour**.
+
+```
+a,b,c
+d,e,f,g,h,i
+k,l
+```
+
+```C#
+string[][] parsedText = CsvParser.ParseText(text.Trim());
+
+/*
+will parse to:
+
+[
+    ["a", "b", "c", "", "", ""]
+    ["d", "e", "f", "g", "h", "i"],
+    ["k", "l", "","", "", ""]
+]
+*/
+```
+
+### NormalizeType.MatchFirstRow
+
+`NormalizeType.MatchFirstRow` will make all rows same size of first rows.
+
+```
+a,b,c
+d,e,f,g,h,i
+k,l
+```
+
+```C#
+string[][] parsedText = CsvParser.ParseText(text.Trim(),
+    new CsvParserOptions()
+    {
+        Normalization = NormalizeType.MatchFirstRow
+    });
+
+/*
+will parse to:
+
+[
+    ["a", "b", "c"]
+    ["d", "e", "f"],
+    ["k", "l", ""]
+]
+*/
+```
+
+### NormalizeType.None
+
+`NormalizeType.None` will not modify the result if there is a size descrepency in rows.
+
+```
+a,b,c
+d,e,f,g,h,i
+k,l
+```
+
+```C#
+string[][] parsedText = CsvParser.ParseText(text.Trim(),
+    new CsvParserOptions()
+    {
+        Normalization = NormalizeType.None
+    });
+
+/*
+will parse to:
+
+[
+    ["a", "b", "c"]
+    ["d", "e", "f", "g", "h", "i"],
+    ["k", "l"]
+]
+*/
+```
