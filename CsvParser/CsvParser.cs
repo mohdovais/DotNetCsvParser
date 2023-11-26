@@ -5,35 +5,51 @@ namespace CsvParser;
 public class CsvParser
 {
     private const int Quote = 34;
-    //private const int Comma = 44;
     private const int CR = 13;
     private const int LF = 10;
     private const int Space = 32;
 
-    public CsvParser()
+    public static string[][] ParseText(string text, CsvParserOptions? options = null)
     {
+        if (options == null)
+        {
+            options = new CsvParserOptions();
+        }
+
+        using var streamReader = new StringReader(text);
+        return ParseStreamReader(streamReader, options);
     }
 
-    public static string[][] Parse(string file, char separator = ',')
+    public static string[][] ParseFile(string file, CsvParserOptions? options = null)
     {
-        var options = new FileStreamOptions()
+        if (options == null)
+        {
+            options = new CsvParserOptions();
+        }
+
+        var streamOptions = new FileStreamOptions()
         {
             Access = FileAccess.Read,
-            Mode = FileMode.Open
+            Mode = FileMode.Open,
         };
-        using StreamReader stream = new(file, options);
+        using StreamReader streamReader = new(file, options.Encoding, false, streamOptions);
 
-        return Parse(stream, separator);
-
+        return ParseStreamReader(streamReader, options);
     }
 
-    public static string[][] Parse(StreamReader streamReader, char separator = ',')
+    private static string[][] ParseStreamReader(TextReader streamReader, CsvParserOptions? options = null)
     {
+        if (options == null)
+        {
+            options = new CsvParserOptions();
+        }
+
         var isEscaped = false;
-        var lines = new List<string[]>();
-        var line = new List<string>();
-        var segmentStringBuilder = new StringBuilder();
-        var spaceStringBuilder = new StringBuilder();
+        var isExpectingSeparator = false;
+        var result = new List<string[]>();
+        var currentRow = new List<string>();
+        var currentCell = new StringBuilder();
+        var spaceBuilder = new StringBuilder();
 
         var read = streamReader.Read();
         var peak = streamReader.Peek();
@@ -48,30 +64,39 @@ public class CsvParser
                 {
                     if (peak == Quote)
                     {
-                        segmentStringBuilder.Append(current);
+                        currentCell.Append(current);
                         streamReader.Read();
                     }
                     else
                     {
                         isEscaped = false;
+                        isExpectingSeparator = true;
 
                     }
                 }
                 else
                 {
-                    segmentStringBuilder.Append(current);
+                    currentCell.Append(current);
                 }
             }
             else
             {
                 if (read == Quote)
                 {
+                    if (isExpectingSeparator)
+                    {
+                        throw new CsvParserException(
+                            GetExceptionMessage(streamReader, current, options.Separator)
+                        );
+                    }
+
                     isEscaped = true;
                 }
-                else if (read == separator)
+                else if (read == options.Separator)
                 {
-                    line.Add(segmentStringBuilder.ToString());
-                    segmentStringBuilder.Clear();
+                    isExpectingSeparator = false;
+                    currentRow.Add(currentCell.ToString());
+                    currentCell.Clear();
                 }
                 else if (read == CR)
                 {
@@ -79,54 +104,59 @@ public class CsvParser
                 }
                 else if (read == LF)
                 {
-                    line.Add(segmentStringBuilder.ToString());
-                    lines.Add(line.ToArray());
-                    segmentStringBuilder.Clear();
-                    line.Clear();
+                    isExpectingSeparator = false;
+                    currentRow.Add(currentCell.ToString());
+                    result.Add(currentRow.ToArray());
+                    currentCell.Clear();
+                    currentRow.Clear();
                 }
                 else if (read == Space)
                 {
-                    if (segmentStringBuilder.Length != 0 && ReadLeadingSpace(streamReader, separator, ref spaceStringBuilder))
+                    if (currentCell.Length != 0 && ReadLeadingSpace(streamReader, options.Separator, ref spaceBuilder))
                     {
-                        segmentStringBuilder.Append(current).Append(spaceStringBuilder);
+                        currentCell.Append(current).Append(spaceBuilder);
                     }
                 }
                 else
                 {
-                    segmentStringBuilder.Append(current);
+                    if (isExpectingSeparator)
+                    {
+                        throw new CsvParserException(
+                            GetExceptionMessage(streamReader, current, options.Separator)
+                        );
+                    }
+
+                    currentCell.Append(current);
                 }
             }
 
-            if(peak == -1 && read != LF)
+            if (peak == -1 && read != LF)
             {
-                line.Add(segmentStringBuilder.ToString());
-                lines.Add(line.ToArray());
-                segmentStringBuilder.Clear();
-                line.Clear();
+                currentRow.Add(currentCell.ToString());
+                result.Add(currentRow.ToArray());
+                currentCell.Clear();
+                currentRow.Clear();
             }
 
             read = streamReader.Read();
             peak = streamReader.Peek();
         }
 
-        
+        currentCell.Clear();
+        spaceBuilder.Clear();
 
-        segmentStringBuilder.Clear();
-        spaceStringBuilder.Clear();
-
-        return lines.ToArray();
+        return Normalize(result, options.Normalization);
     }
 
-
-    private static bool ReadLeadingSpace(StreamReader stream, char separator, ref StringBuilder result)
+    private static bool ReadLeadingSpace(TextReader streamReader, char separator, ref StringBuilder result)
     {
-        var peek = stream.Peek();
+        var peek = streamReader.Peek();
         result.Clear();
         while (peek == Space)
         {
             result.Append(Space);
-            stream.Read();
-            peek = stream.Peek();
+            streamReader.Read();
+            peek = streamReader.Peek();
         }
 
         if (peek == separator || peek == CR || peek == LF || peek == -1)
@@ -136,6 +166,40 @@ public class CsvParser
         }
 
         return true;
+    }
+
+    private static string[][] Normalize(List<string[]> list, NormalizeType type)
+    {
+        if (type == NormalizeType.None || list.Count < 2)
+        {
+            return list.ToArray();
+        }
+
+        var requiredLength = type == NormalizeType.MatchFirstRow ? list[0].Length : list.Max(x => x.Length);
+
+        return list.ConvertAll(row =>
+        {
+            if (row.Length != requiredLength)
+            {
+                var oldLength = row.Length;
+                Array.Resize(ref row, requiredLength);
+                if (oldLength < requiredLength)
+                {
+                    for (var i = oldLength; i < requiredLength; i++)
+                    {
+                        row[i] = string.Empty;
+                    }
+                }
+            }
+            return row;
+        }).ToArray();
+    }
+
+    private static string GetExceptionMessage(TextReader streamReader, char actual, char separator)
+    {
+        var message = $"Expecting '{separator}' but found '{actual}{streamReader.ReadLine()}'";
+        streamReader.Dispose();
+        return message;
     }
 
 }
